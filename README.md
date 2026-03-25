@@ -1,5 +1,5 @@
 # Quantifying Neuroanatomical Atrophy
-## A Resource-Efficient PCA-SVM Pipeline for Multi-Stage Alzheimer's Classification
+## A PCA-SVM Pipeline for Multi-Stage Alzheimer's Classification
 
 This repository contains a complete machine learning pipeline that classifies Alzheimer's Disease into four stages : **Non-Demented, Very Mild Demented, Mild Demented, and Moderate Demented** : using MRI brain scans from the OASIS-1 dataset. The approach uses PCA for dimensionality reduction and SVM for classification.
 
@@ -9,7 +9,7 @@ This repository contains a complete machine learning pipeline that classifies Al
 
 - **Python 3.10 or higher** (developed on Python 3.12.4)
 - **Windows 10/11**
-- ~2 GB free disk space (for the dataset and processed outputs)
+- ~5 GB free disk space (for the dataset and processed outputs)
 
 Install all required libraries in one command:
 
