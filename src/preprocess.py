@@ -10,14 +10,14 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-# --- Paths ---
+# Paths
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "Data")
 REFINED_DIR = os.path.join(BASE_DIR, "data", "processed", "refined_images")
 MAPPING_OUT = os.path.join(BASE_DIR, "data", "processed", "mapping.csv")
 SKIPPED_OUT = os.path.join(BASE_DIR, "data", "processed", "skipped_subjects.txt")
 
-# --- Configuration ---
+# Configuration
 TARGET_SLICE = 130
 FALLBACK_RANGE = (125, 135)
 IMG_SIZE = (128, 128)
@@ -39,7 +39,7 @@ FOLDER_TO_CDR = {
 os.makedirs(REFINED_DIR, exist_ok=True)
 os.makedirs(os.path.dirname(MAPPING_OUT), exist_ok=True)
 
-# --- Loading OASIS metadata ---
+# Loading OASIS metadata 
 xlsx_files = glob.glob(os.path.join(DATA_DIR, "*.xlsx"))
 if not xlsx_files:
     sys.exit("ERROR: No xlsx file found in Data directory.")
@@ -47,7 +47,7 @@ if not xlsx_files:
 df_meta = pd.read_excel(xlsx_files[0])[["ID", "CDR"]].set_index("ID")
 print(f"Loaded metadata: {len(df_meta)} subjects")
 
-# --- Building subject index ---
+# Building subject index 
 # Maps subject_id -> {folder, slices: {slice_num: filepath}}
 subject_index = {}
 
@@ -70,7 +70,7 @@ for cls_folder in FOLDER_TO_CDR:
 
 print(f"Indexed {len(subject_index)} unique subjects across all class folders")
 
-# --- Processing subjects ---
+# Processing subjects 
 records = []
 skipped = []
 
@@ -128,7 +128,7 @@ for subj_id, info in tqdm(subject_index.items(), desc="Processing subjects"):
             records.append({"file_path": out_path, "subject_id": subj_id,
                             "cdr_score": cdr, "label": label})
 
-# --- Saving outputs ---
+# Saving outputs 
 df_mapping = pd.DataFrame(records)
 df_mapping.to_csv(MAPPING_OUT, index=False)
 
