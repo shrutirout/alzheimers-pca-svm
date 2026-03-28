@@ -1,17 +1,51 @@
 # Quantifying Neuroanatomical Atrophy
-## A PCA-SVM Pipeline for Multi-Stage Alzheimer's Classification
+### A PCA-SVM Pipeline for Multi-Stage Alzheimer's Classification
 
-This repository contains a complete machine learning pipeline that classifies Alzheimer's Disease into four stages : **Non-Demented, Very Mild Demented, Mild Demented, and Moderate Demented** : using MRI brain scans from the OASIS-1 dataset. The approach uses PCA for dimensionality reduction and SVM for classification.
+This project builds a machine learning pipeline to classify Alzheimer's Disease into four stages using MRI brain scans from the OASIS-1 dataset. The core idea is to use PCA to reduce each brain scan into a compact set of mathematical features, then train an SVM to classify those features into one of four dementia stages: Non-Demented, Very Mild Demented, Mild Demented, and Moderate Demented.
+
+The goal is to show that accurate classification is possible using a resource-efficient approach, without deep learning, and with only a few hundred samples.
 
 ---
 
-## Prerequisites
+## Project Plan and Progress
 
-- **Python 3.10 or higher** (developed on Python 3.12.4)
-- **Windows 10/11**
-- ~5 GB free disk space (for the dataset and processed outputs)
+| Phase | Description | Status |
+|---|---|---|
+| Stage 0 | Preprocessing script to select and clean MRI slices | Done |
+| Phase 1 | Environment setup, metadata loading, class distribution | Done |
+| Phase 2 | MRI image loading, flattening to feature vectors | Done |
+| Phase 3 | PCA dimensionality reduction, eigenbrain visualisation | Done |
+| Phase 4 | Train/test splitting, Moderate class augmentation, class weights | Done |
+| Phase 5 | SVM training (Linear + RBF) with GridSearchCV | Not started |
+| Phase 6 | Evaluation: classification report, confusion matrix, ROC curves | Not started |
+| Final | Experiment summary and configuration export | Not started |
 
-Install all required libraries in one command:
+---
+
+## Key Design Decisions
+
+**One slice per subject, not per scan.** The dataset has thousands of MRI slices per person. Using multiple slices from the same person would let the model recognise the person rather than the disease. We select one axial slice per subject (targeting index 130, or the closest available) to keep the science valid.
+
+**201 subjects had no CDR score in the metadata.** CDR (Clinical Dementia Rating) is the label source. Rather than drop those subjects and lose nearly half the dataset, we infer their label from the folder they are stored in, since the dataset author sorted subjects into folders based on CDR. The CSV value takes precedence when available.
+
+**The Moderate class only has 2 real subjects.** This is a known limitation of the OASIS-1 dataset. To make the pipeline viable, we apply two rounds of augmentation:
+- In `preprocess.py`: pixel-space augmentation (flip + rotate) brings the class to 8 samples
+- In Phase 4: PCA-space augmentation (Gaussian noise + scaling) on the training set only brings it to 30 training samples
+
+**Augmentation is done after splitting, not before.** This prevents data leakage. The test set is never touched and contains only original samples.
+
+**5-fold cross-validation instead of 10.** With 30 Moderate training samples, 10-fold CV would give roughly 3 Moderate samples per fold, which is too few for stable SVM training. 5-fold gives around 6 per fold, which is the minimum viable amount.
+
+**1 Moderate sample ends up in the test set.** With only 8 total Moderate samples at split time, stratified 80/20 gives 1 test sample for that class. Per-class metrics for Moderate in Phase 6 will be noted with a caveat. The confusion matrix is the more meaningful diagnostic for that class.
+
+---
+
+## How to Replicate
+
+### Prerequisites
+
+- Python 3.10 or higher (developed on 3.12.4)
+- Windows 10/11
 
 ```bash
 pip install numpy pandas matplotlib seaborn scikit-learn opencv-python tqdm openpyxl
@@ -19,9 +53,7 @@ pip install numpy pandas matplotlib seaborn scikit-learn opencv-python tqdm open
 
 ---
 
-## Step 1 : Clone the Repository
-
-Open a terminal and run:
+### Step 1: Clone the Repository
 
 ```bash
 git clone https://github.com/shrutirout/alzheimers-pca-svm.git
@@ -30,261 +62,102 @@ cd alzheimers-pca-svm
 
 ---
 
-## Step 2 : Download the Dataset
+### Step 2: Download the Dataset
 
-Download the dataset from:
+Download from Kaggle:
 
-> **[https://www.kaggle.com/datasets/yiweilu2033/well-documented-alzheimers-dataset]**
+> https://www.kaggle.com/datasets/yiweilu2033/well-documented-alzheimers-dataset
 
-The downloaded zip contains a nested folder structure like this:
-
-```
-MildDemented/
-    MildDemented/        ← files are inside a second folder with the same name
-        OAS1_0028_MR1_1.nii_slice_130.png
-        ...
-ModerateDemented/
-    ModerateDemented/
-        ...
-NonDemented/
-    NonDemented/
-        ...
-VeryMildDemented/
-    VeryMildDemented/
-        ...
-```
-
-**You must collapse the nested folders.** Move the inner folder's contents up one level so the structure becomes flat : the PNG files should be directly inside each class folder, not inside a subfolder. After collapsing, it should look like:
+The zip has a nested structure where each class folder contains another folder with the same name. You need to collapse it so the PNG files sit directly inside each class folder:
 
 ```
 MildDemented/
     OAS1_0028_MR1_1.nii_slice_130.png
-    OAS1_0028_MR1_2.nii_slice_130.png
     ...
 ModerateDemented/
     OAS1_0308_MR1_1.nii_slice_130.png
     ...
-NonDemented/
-    OAS1_0001_MR1_1.nii_slice_130.png
-    ...
-VeryMildDemented/
-    OAS1_0002_MR1_1.nii_slice_130.png
-    ...
 ```
 
-The dataset also contains a metadata Excel file (`oasis_cross-sectional-*.xlsx`). Keep this inside the `Data/` folder as well.
+Also keep the metadata Excel file (`oasis_cross-sectional-*.xlsx`) alongside the folders.
 
 ---
 
-## Step 3 : Place the Dataset
+### Step 3: Place the Dataset
 
-Place the four class folders and the Excel file inside the `Data/` folder in the cloned repository:
+Put the four class folders and the Excel file inside `Data/`:
 
 ```
 alzheimers-pca-svm/
     Data/
-        MildDemented/          ← paste here
-        ModerateDemented/      ← paste here
-        NonDemented/           ← paste here
-        VeryMildDemented/      ← paste here
-        oasis_cross-sectional-5708aa0a98d82080 (1).xlsx   ← paste here
-        processed/             ← will be populated by the scripts automatically
-    notebooks/
-    outputs/
-    src/
-    ...
+        MildDemented/
+        ModerateDemented/
+        NonDemented/
+        VeryMildDemented/
+        oasis_cross-sectional-5708aa0a98d82080 (1).xlsx
+        processed/        (already in repo, do not delete)
 ```
-
-> Note: The `Data/` folder holds both the raw dataset and the processed outputs (inside `Data/processed/`). All scripts write their outputs there automatically.
 
 ---
 
-## Step 4: Run the Preprocessing Script
-
-Open a terminal in the project root folder and run:
+### Step 4: Run the Preprocessing Script
 
 ```bash
 python src/preprocess.py
 ```
 
-This script will:
-- Read the metadata Excel file to get CDR scores for each subject
-- Select one representative axial slice per subject (targeting slice index 130)
-- Resize each slice to 128×128, normalise pixel values to [0, 1]
-- Perform minority augmentation on the Moderate class (flip + rotate)
-- Save all refined images to `Data/processed/refined_images/`
-- Save `Data/processed/mapping.csv` : a table linking each image to its subject ID, CDR score, and label
+This selects one representative slice per subject, resizes to 128x128, normalises pixel values, applies augmentation to the Moderate class, and saves everything to `Data/processed/`.
 
-**Expected output at the end:**
-
+Expected output:
 ```
 Done: 442 samples saved, 0 subjects skipped.
 
-Label distribution:
-label
 Non-Demented          336
 Very Mild Demented     70
 Mild Demented          28
 Moderate Demented       8
 ```
 
-If any subjects are skipped, check `Data/processed/skipped_subjects.txt` for details.
-
 ---
 
-## Step 5: Run the Notebooks in Order
+### Step 5: Run the Notebooks in Order
 
-Open Jupyter Notebook or JupyterLab from the project root:
+Launch Jupyter from the project root:
 
 ```bash
 jupyter notebook
 ```
 
-Then run each notebook **from top to bottom**, in this exact order:
+Run each notebook top to bottom in this order:
 
----
-
-### Phase 1: `notebooks/phase1_environment_setup.ipynb`
-
-**What it does:**
-- Creates all output directories
-- Loads `mapping.csv` and builds the metadata dataframe
-- Saves a class distribution bar chart
-
-**Expected outputs:**
-- `outputs/plots/class_distribution.png`
-- `Data/processed/metadata_processed.csv`
-
----
-
-### Phase 2: `notebooks/phase2_mri_preprocessing.ipynb`
-
-**What it does:**
-- Reads all 442 refined PNGs from `Data/processed/refined_images/`
-- Flattens each 128×128 image into a 16,384-element feature vector
-- Builds the feature matrix X and label vector y
-
-**Expected outputs:**
-- `Data/processed/X.npy` : shape (442, 16384)
-- `Data/processed/y.npy` : shape (442,)
-- `outputs/plots/sample_slices.png`
-
----
-
-### Phase 3: `notebooks/phase3_pca_reduction.ipynb`
-
-**What it does:**
-- Standardises X using StandardScaler
-- Applies PCA to capture 95% of variance (reduces 16,384 features → 233 components)
-- Visualises the top 3 principal components as "eigenbrains"
-
-**Expected outputs:**
-- `Data/processed/X_pca.npy` : shape (442, 233)
-- `outputs/models/pca_model.pkl`
-- `outputs/plots/pca_variance_curve.png`
-- `outputs/pca_components/eigenbrain_1.png`, `eigenbrain_2.png`, `eigenbrain_3.png`
-
----
-
-### Phase 4: `notebooks/phase4_splitting_augmentation.ipynb`
-
-**What it does:**
-- Performs a stratified 80/20 train/test split
-- Augments the Moderate class in the **training set only** (in PCA space) from ~7 → 30 samples using Gaussian noise and feature scaling : this prevents data leakage
-- Computes class weights to handle class imbalance during SVM training
-- Plots the final training and test distributions
-
-**Expected outputs:**
-- `Data/processed/X_train.npy` : shape (376, 233)
-- `Data/processed/X_test.npy` : shape (89, 233)
-- `Data/processed/y_train.npy`, `Data/processed/y_test.npy`
-- `outputs/metrics/class_weights.json`
-- `outputs/plots/train_distribution.png`
-
-**Expected training distribution (post-augmentation):**
-
-| Class | Train | Test |
-|---|---|---|
-| Non-Demented | 268 | 68 |
-| Very Mild Demented | 56 | 14 |
-| Mild Demented | 22 | 6 |
-| Moderate Demented | 30 | 1 |
+| Notebook | What it produces |
+|---|---|
+| `phase1_environment_setup.ipynb` | `class_distribution.png`, `metadata_processed.csv` |
+| `phase2_mri_preprocessing.ipynb` | `X.npy`, `y.npy`, `sample_slices.png` |
+| `phase3_pca_reduction.ipynb` | `X_pca.npy`, `pca_model.pkl`, variance curve, eigenbrains |
+| `phase4_splitting_augmentation.ipynb` | `X_train.npy`, `X_test.npy`, `y_train.npy`, `y_test.npy`, `class_weights.json` |
 
 ---
 
 ## What is Already in the Repository
 
-The following outputs are committed and can be viewed directly on GitHub without running anything:
+You do not need to run anything to view these. They are already committed:
 
-**Plots** (`outputs/plots/`) :
-- `class_distribution.png` — label imbalance across the 4 classes
-- `sample_slices.png` — one representative MRI slice per class
-- `pca_variance_curve.png` — how many PCA components are needed to capture 95% variance
-- `eigenbrains_overview.png` — the top 3 principal components visualised as brain images
-- `train_distribution.png` — training set class counts after augmentation
-
-**Eigenbrains** (`outputs/pca_components/`) :
-- `eigenbrain_1.png`, `eigenbrain_2.png`, `eigenbrain_3.png`
-
-**Metrics** (`outputs/metrics/`) :
-- `class_weights.json` — class weights computed for SVM training
-
-**Preprocessed Dataset** (`Data/processed/`) :
-- `refined_images/` — 442 skull-stripped, normalised, 128×128 PNG slices (one per subject)
-- `mapping.csv` — subject ID, CDR score, label and file path for every sample
-- `metadata_processed.csv` — full metadata dataframe
-
-**Train / Test Splits** (`Data/processed/`) :
-- `X_train.npy` (376, 233) and `X_test.npy` (89, 233) — PCA-space feature matrices
-- `y_train.npy` and `y_test.npy` — corresponding label arrays
-
-> You are encouraged to run all notebooks yourself to regenerate every output from scratch. The files above are included for direct reference only.
-
----
-
-## Full Directory Structure (after all steps complete)
-
-```
-alzheimers-pca-svm/
-│
-├── Data/                               ← raw dataset (you add this, not in repo)
-│   ├── MildDemented/
-│   ├── ModerateDemented/
-│   ├── NonDemented/
-│   ├── VeryMildDemented/
-│   ├── oasis_cross-sectional-*.xlsx
-│   └── processed/                      ← included in repo
-│       ├── refined_images/             ← 442 preprocessed PNGs
-│       ├── mapping.csv
-│       ├── metadata_processed.csv
-│       ├── X_train.npy, X_test.npy
-│       └── y_train.npy, y_test.npy
-│
-├── notebooks/
-│   ├── phase1_environment_setup.ipynb
-│   ├── phase2_mri_preprocessing.ipynb
-│   ├── phase3_pca_reduction.ipynb
-│   └── phase4_splitting_augmentation.ipynb
-│
-├── outputs/                            ← included in repo (viewable on GitHub)
-│   ├── plots/
-│   ├── models/
-│   ├── metrics/
-│   └── pca_components/
-│
-├── src/
-│   └── preprocess.py
-└── README.md
-```
+- `outputs/plots/` : class distribution, sample slices, PCA variance curve, eigenbrains, train distribution
+- `outputs/pca_components/` : eigenbrain_1, eigenbrain_2, eigenbrain_3
+- `outputs/metrics/class_weights.json`
+- `Data/processed/refined_images/` : 442 preprocessed PNGs (one per subject)
+- `Data/processed/mapping.csv` and `metadata_processed.csv`
+- `Data/processed/X_train.npy`, `X_test.npy`, `y_train.npy`, `y_test.npy`
 
 ---
 
 ## Common Issues
 
-**`ModuleNotFoundError`**: run `pip install <missing_module>` and retry.
+**ModuleNotFoundError**: run `pip install <missing_module>` and retry.
 
-**`cv2.imread` returns None / images not loading** : confirm the PNG files are directly inside the class folders (not nested in a subfolder). See Step 2.
+**Images not loading**: confirm PNGs are directly inside each class folder, not inside a subfolder.
 
-**Excel file not found** : ensure the `.xlsx` file is inside `Data/` with its original filename intact.
+**Excel file not found**: make sure the `.xlsx` file is inside `Data/` with its full original filename.
 
-**Jupyter can't find the notebooks** : launch `jupyter notebook` from the project root, not from inside the `notebooks/` folder.
+**Jupyter cannot find notebooks**: always launch `jupyter notebook` from the project root, not from inside the `notebooks/` folder.
