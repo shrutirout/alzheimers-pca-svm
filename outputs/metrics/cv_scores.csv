@@ -1,0 +1,22 @@
+model,params,mean_f1_macro
+Linear,{'C': 0.01},0.7514
+Linear,{'C': 0.1},0.7581
+Linear,{'C': 1},0.7581
+Linear,{'C': 10},0.7581
+Linear,{'C': 100},0.7581
+RBF,"{'C': 0.1, 'gamma': 'scale'}",0.3666
+RBF,"{'C': 0.1, 'gamma': 'auto'}",0.2661
+RBF,"{'C': 0.1, 'gamma': 0.001}",0.2926
+RBF,"{'C': 0.1, 'gamma': 0.01}",0.2537
+RBF,"{'C': 1, 'gamma': 'scale'}",0.7421
+RBF,"{'C': 1, 'gamma': 'auto'}",0.6981
+RBF,"{'C': 1, 'gamma': 0.001}",0.6981
+RBF,"{'C': 1, 'gamma': 0.01}",0.6775
+RBF,"{'C': 10, 'gamma': 'scale'}",0.764
+RBF,"{'C': 10, 'gamma': 'auto'}",0.6981
+RBF,"{'C': 10, 'gamma': 0.001}",0.6981
+RBF,"{'C': 10, 'gamma': 0.01}",0.6775
+RBF,"{'C': 100, 'gamma': 'scale'}",0.7732
+RBF,"{'C': 100, 'gamma': 'auto'}",0.6981
+RBF,"{'C': 100, 'gamma': 0.001}",0.6981
+RBF,"{'C': 100, 'gamma': 0.01}",0.6775

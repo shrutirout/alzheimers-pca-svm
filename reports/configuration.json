@@ -1,0 +1,39 @@
+{
+  "random_seed": 42,
+  "image_size": [
+    128,
+    128
+  ],
+  "target_slice": 130,
+  "slice_selection": "closest available to target, no range restriction",
+  "pca_variance_threshold": 0.95,
+  "pca_n_components": 233,
+  "train_test_split": 0.8,
+  "cv_folds": 5,
+  "cv_scoring": "f1_macro",
+  "class_weighting": "balanced (computed via sklearn, passed as dict)",
+  "augmentation": {
+    "pixel_space": [
+      "horizontal_flip",
+      "rotate_+3deg",
+      "rotate_-3deg"
+    ],
+    "pca_space": [
+      "gaussian_noise (var 0.01-0.02)",
+      "scale x0.98",
+      "scale x1.02"
+    ],
+    "applied_to": "Moderate Demented class, training set only"
+  },
+  "total_samples": 442,
+  "train_samples": 376,
+  "test_samples": 89,
+  "svm_linear_best_params": {
+    "C": 0.1
+  },
+  "svm_rbf_best_params": {
+    "C": 100,
+    "gamma": "scale"
+  },
+  "note": "Test set contains 1 Moderate sample. Per-class F1 for Moderate is not reliable standalone."
+}

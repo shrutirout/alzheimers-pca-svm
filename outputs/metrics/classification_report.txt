@@ -1,0 +1,26 @@
+Best model: RBF SVM
+Note: Moderate class has 1 test sample only. Per-class F1 for Moderate is not reliable.
+
+Linear SVM:
+                    precision    recall  f1-score   support
+
+     Mild Demented       0.00      0.00      0.00         6
+ Moderate Demented       0.50      1.00      0.67         1
+      Non-Demented       0.81      0.88      0.85        68
+Very Mild Demented       0.00      0.00      0.00        14
+
+          accuracy                           0.69        89
+         macro avg       0.33      0.47      0.38        89
+      weighted avg       0.63      0.69      0.65        89
+
+RBF SVM:
+                    precision    recall  f1-score   support
+
+     Mild Demented       0.00      0.00      0.00         6
+ Moderate Demented       1.00      1.00      1.00         1
+      Non-Demented       0.81      0.96      0.88        68
+Very Mild Demented       0.25      0.14      0.18        14
+
+          accuracy                           0.76        89
+         macro avg       0.52      0.52      0.52        89
+      weighted avg       0.67      0.76      0.71        89
