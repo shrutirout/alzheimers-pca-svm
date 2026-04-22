@@ -1,1 +1,26 @@
+Data/MildDemented/
+Data/ModerateDemented/
+Data/NonDemented/
+Data/VeryMildDemented/
+Data/*.xlsx
+Data/*.xls
 
+data/processed/X.npy
+data/processed/X_pca.npy
+data/processed/y.npy
+
+outputs/models/*.pkl
+
+__pycache__/
+*.pyc
+*.pyo
+
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/
+*.md
+!README.md
+
+*.docx
+
+.DS_Store
+Thumbs.db
