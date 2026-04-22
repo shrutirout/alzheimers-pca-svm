@@ -1,42 +1,59 @@
 # Quantifying Neuroanatomical Atrophy
 ### A PCA-SVM Pipeline for Multi-Stage Alzheimer's Classification
 
-This project builds a machine learning pipeline to classify Alzheimer's Disease into four stages using MRI brain scans from the OASIS-1 dataset. The core idea is to use PCA to reduce each brain scan into a compact set of mathematical features, then train an SVM to classify those features into one of four dementia stages: Non-Demented, Very Mild Demented, Mild Demented, and Moderate Demented.
+This project builds a machine learning pipeline to classify Alzheimer's Disease into four stages using MRI brain scans from the OASIS-1 dataset. Each scan is reduced from 16,384 raw pixel values to 233 principal components using PCA, and a Support Vector Machine is trained on those components to classify patients into one of four dementia stages: Non-Demented, Very Mild Demented, Mild Demented, and Moderate Demented.
 
-The goal is to show that accurate classification is possible using a resource-efficient approach, without deep learning, and with only a few hundred samples.
+The approach is deliberately resource-efficient — no deep learning, no GPU, and only a few hundred samples. The full pipeline runs on a standard laptop CPU.
 
 ---
 
-## Project Plan and Progress
+## Pipeline Overview
 
 | Phase | Description | Status |
 |---|---|---|
-| Stage 0 | Preprocessing script to select and clean MRI slices | Done |
+| Stage 0 | Preprocessing script — slice selection, normalisation, pixel-space augmentation | Done |
 | Phase 1 | Environment setup, metadata loading, class distribution | Done |
-| Phase 2 | MRI image loading, flattening to feature vectors | Done |
-| Phase 3 | PCA dimensionality reduction, eigenbrain visualisation | Done |
-| Phase 4 | Train/test splitting, Moderate class augmentation, class weights | Done |
-| Phase 5 | SVM training (Linear + RBF) with GridSearchCV | Not started |
-| Phase 6 | Evaluation: classification report, confusion matrix, ROC curves | Not started |
-| Final | Experiment summary and configuration export | Not started |
+| Phase 2 | MRI image loading, grayscale normalisation, flattening to feature vectors | Done |
+| Phase 3 | StandardScaler + PCA dimensionality reduction, eigenbrain visualisation | Done |
+| Phase 4 | Stratified train/test split, PCA-space augmentation, class weight computation | Done |
+| Phase 5 | SVM training — Linear and RBF kernels with GridSearchCV (5-fold CV) | Done |
+| Phase 6 | Evaluation — classification report, confusion matrix, ROC curves, PCA projection | Done |
+| Final | Experiment summary and configuration export | Done |
 
 ---
 
 ## Key Design Decisions
 
-**One slice per subject, not per scan.** The dataset has thousands of MRI slices per person. Using multiple slices from the same person would let the model recognise the person rather than the disease. We select one axial slice per subject (targeting index 130, or the closest available) to keep the science valid.
+**One slice per subject.** The dataset contains up to 180 axial slices per person. Using multiple slices causes subject leakage — the model learns to recognise the person's anatomy rather than the disease. We select one slice per subject, targeting index 130 (mid-axial plane, captures the hippocampus), or the closest available with no range restriction.
 
-**201 subjects had no CDR score in the metadata.** CDR (Clinical Dementia Rating) is the label source. Rather than drop those subjects and lose nearly half the dataset, we infer their label from the folder they are stored in, since the dataset author sorted subjects into folders based on CDR. The CSV value takes precedence when available.
+**CDR label inference for 201 subjects.** The OASIS-1 metadata Excel file has CDR = None for 201 of 436 subjects. Dropping them would leave only 235 samples — unworkable for a 4-class problem. Instead, we infer labels from the folder the dataset author placed them in, since the author sorted all subjects by CDR. The CSV value takes precedence; folder is fallback only.
 
-**The Moderate class only has 2 real subjects.** This is a known limitation of the OASIS-1 dataset. To make the pipeline viable, we apply two rounds of augmentation:
-- In `preprocess.py`: pixel-space augmentation (flip + rotate) brings the class to 8 samples
-- In Phase 4: PCA-space augmentation (Gaussian noise + scaling) on the training set only brings it to 30 training samples
+**Two rounds of augmentation for minority classes.** The Moderate class has only 2 real subjects in OASIS-1, and Mild has 28.
+- `preprocess.py`: pixel-space augmentation (horizontal flip + ±3° rotation) brings Moderate from 2 to 8 samples
+- Phase 4: PCA-space augmentation (Gaussian noise + ×0.98/×1.02 scaling) on the training set only brings Moderate to 30 and Mild to 65 training samples
 
-**Augmentation is done after splitting, not before.** This prevents data leakage. The test set is never touched and contains only original samples.
+**Augmentation only after splitting.** The test set is locked before any augmentation. It contains only original, unmodified samples — ensuring a clean, honest evaluation.
 
-**5-fold cross-validation instead of 10.** With 30 Moderate training samples, 10-fold CV would give roughly 3 Moderate samples per fold, which is too few for stable SVM training. 5-fold gives around 6 per fold, which is the minimum viable amount.
+**5-fold cross-validation.** With 30 Moderate training samples, 10-fold CV gives roughly 3 per fold — too few for stable SVM optimisation. 5-fold gives approximately 6 per fold, which is the minimum viable count.
 
-**1 Moderate sample ends up in the test set.** With only 8 total Moderate samples at split time, stratified 80/20 gives 1 test sample for that class. Per-class metrics for Moderate in Phase 6 will be noted with a caveat. The confusion matrix is the more meaningful diagnostic for that class.
+**Macro F1 as the primary metric.** Accuracy is misleading on this dataset — predicting Non-Demented for every sample yields 76% accuracy while being clinically useless. Macro F1 weights all four classes equally and is the honest measure of performance.
+
+---
+
+## Results
+
+Both models were evaluated on a clean, unaugmented test set of 89 samples.
+
+| Model | Accuracy | Macro F1 | Best Params |
+|---|---|---|---|
+| Linear SVM | 0.69 | 0.38 | C = 0.1 |
+| RBF SVM | 0.76 | 0.52 | C = 100, gamma = scale |
+
+**RBF SVM is the better model.** It correctly identified 96% of Non-Demented cases and 14% of Very Mild cases. Mild Demented recall is 0 on both models — a known dataset limitation. With only 28 real Mild subjects against 336 Non-Demented, the SVM cannot learn a reliable boundary regardless of augmentation or class weighting. This is reported honestly rather than obscured.
+
+The Moderate class has 1 test sample. Its per-class metrics are not statistically meaningful and should be interpreted from the confusion matrix, not the classification report.
+
+Our RBF result of 76% is consistent with and marginally above the best published PCA+SVM result on comparable OASIS data (74.21% with linear SVM, reported in literature). Papers claiming 90%+ use 14× more data and deep learning.
 
 ---
 
@@ -68,45 +85,29 @@ Download from Kaggle:
 
 > https://www.kaggle.com/datasets/yiweilu2033/well-documented-alzheimers-dataset
 
-The zip has a nested structure where each class folder contains another folder with the same name. You need to collapse it so the PNG files sit directly inside each class folder:
+The zip has a nested folder structure. Collapse it so PNG files sit directly inside each class folder:
 
 ```
-MildDemented/
-    OAS1_0028_MR1_1.nii_slice_130.png
-    ...
-ModerateDemented/
-    OAS1_0308_MR1_1.nii_slice_130.png
-    ...
-```
-
-Also keep the metadata Excel file (`oasis_cross-sectional-*.xlsx`) alongside the folders.
-
----
-
-### Step 3: Place the Dataset
-
-Put the four class folders and the Excel file inside `Data/`:
-
-```
-alzheimers-pca-svm/
-    Data/
-        MildDemented/
-        ModerateDemented/
-        NonDemented/
-        VeryMildDemented/
-        oasis_cross-sectional-5708aa0a98d82080 (1).xlsx
-        processed/        (already in repo, do not delete)
+Data/
+    MildDemented/
+        OAS1_0028_MR1_1.nii_slice_130.png
+        ...
+    ModerateDemented/
+    NonDemented/
+    VeryMildDemented/
+    oasis_cross-sectional-*.xlsx
+    processed/        ← already in repo, do not delete
 ```
 
 ---
 
-### Step 4: Run the Preprocessing Script
+### Step 3: Run the Preprocessing Script
 
 ```bash
 python src/preprocess.py
 ```
 
-This selects one representative slice per subject, resizes to 128x128, normalises pixel values, applies augmentation to the Moderate class, and saves everything to `Data/processed/`.
+Selects one slice per subject, resizes to 128×128, normalises pixel values, applies pixel-space augmentation to the Moderate class, and saves everything to `Data/processed/`.
 
 Expected output:
 ```
@@ -120,7 +121,7 @@ Moderate Demented       8
 
 ---
 
-### Step 5: Run the Notebooks in Order
+### Step 4: Run the Notebooks in Order
 
 Launch Jupyter from the project root:
 
@@ -128,36 +129,38 @@ Launch Jupyter from the project root:
 jupyter notebook
 ```
 
-Run each notebook top to bottom in this order:
-
 | Notebook | What it produces |
 |---|---|
 | `phase1_environment_setup.ipynb` | `class_distribution.png`, `metadata_processed.csv` |
 | `phase2_mri_preprocessing.ipynb` | `X.npy`, `y.npy`, `sample_slices.png` |
 | `phase3_pca_reduction.ipynb` | `X_pca.npy`, `pca_model.pkl`, variance curve, eigenbrains |
 | `phase4_splitting_augmentation.ipynb` | `X_train.npy`, `X_test.npy`, `y_train.npy`, `y_test.npy`, `class_weights.json` |
+| `phase5_svm_training.ipynb` | `svm_linear.pkl`, `svm_rbf.pkl`, `cv_scores.csv` |
+| `phase6_evaluation.ipynb` | `classification_report.txt`, `confusion_matrix.png`, `roc_curves.png`, `pca_projection.png`, `component_importance.png` |
 
 ---
 
 ## What is Already in the Repository
 
-You do not need to run anything to view these. They are already committed:
+The following outputs are pre-committed and do not require re-running anything to view:
 
-- `outputs/plots/` : class distribution, sample slices, PCA variance curve, eigenbrains, train distribution
-- `outputs/pca_components/` : eigenbrain_1, eigenbrain_2, eigenbrain_3
-- `outputs/metrics/class_weights.json`
-- `Data/processed/refined_images/` : 442 preprocessed PNGs (one per subject)
-- `Data/processed/mapping.csv` and `metadata_processed.csv`
-- `Data/processed/X_train.npy`, `X_test.npy`, `y_train.npy`, `y_test.npy`
+- `outputs/plots/` — class distribution, sample slices, PCA variance curve, eigenbrains, train distribution, confusion matrix, ROC curves, PCA projection, component importance
+- `outputs/pca_components/` — eigenbrain_1, eigenbrain_2, eigenbrain_3
+- `outputs/metrics/` — `class_weights.json`, `cv_scores.csv`, `classification_report.txt`
+- `reports/` — `experiment_summary.csv`, `configuration.json`
+- `Data/processed/refined_images/` — 442 preprocessed PNGs, one per subject
+- `Data/processed/` — `mapping.csv`, `metadata_processed.csv`, `X_train.npy`, `X_test.npy`, `y_train.npy`, `y_test.npy`
+
+Note: `X.npy`, `X_pca.npy`, `y.npy`, and trained model `.pkl` files are excluded from the repo — they are regenerated by running the notebooks.
 
 ---
 
 ## Common Issues
 
-**ModuleNotFoundError**: run `pip install <missing_module>` and retry.
+**ModuleNotFoundError** — run `pip install <missing_module>` and retry.
 
-**Images not loading**: confirm PNGs are directly inside each class folder, not inside a subfolder.
+**Images not loading** — confirm PNGs are directly inside each class folder, not inside a nested subfolder.
 
-**Excel file not found**: make sure the `.xlsx` file is inside `Data/` with its full original filename.
+**Excel file not found** — the `.xlsx` file must be inside `Data/` with its full original filename.
 
-**Jupyter cannot find notebooks**: always launch `jupyter notebook` from the project root, not from inside the `notebooks/` folder.
+**Jupyter cannot find notebooks** — always launch `jupyter notebook` from the project root, not from inside the `notebooks/` folder.
